@@ -21,20 +21,12 @@
 #include "wait.h"
 #include "debug.h"
 #include "gpio.h"
-#include "pointing_device_internal.h"
-
-const pointing_device_driver_t pmw3320_pointing_device_drivera = {
-    .init       = pmw3320_init,
-    .get_report = pmw3320_get_report,
-    .set_cpi    = pmw3320_set_cpi,
-    .get_cpi    = pmw3320_get_cpi,
-};
 
 void pmw3320_init(void) {
     // Initialize sensor serial pins.
-    gpio_set_pin_output(PMW3320_SCLK_PIN);
-    gpio_set_pin_output(PMW3320_SDIO_PIN);
-    gpio_set_pin_output(PMW3320_CS_PIN);
+    setPinOutput(PMW3320_SCLK_PIN);
+    setPinOutput(PMW3320_SDIO_PIN);
+    setPinOutput(PMW3320_CS_PIN);
 
     // reboot the sensor.
     pmw3320_write_reg(REG_Power_Up_Reset, 0x5a);
@@ -62,30 +54,30 @@ void pmw3320_init(void) {
 // Just as with the serial protocol, this is used by the slave to send a
 // synchronization signal to the master.
 void pmw3320_sync(void) {
-    gpio_write_pin_low(PMW3320_CS_PIN);
+    writePinLow(PMW3320_CS_PIN);
     wait_us(1);
-    gpio_write_pin_high(PMW3320_CS_PIN);
+    writePinHigh(PMW3320_CS_PIN);
 }
 
 void pmw3320_cs_select(void) {
-    gpio_write_pin_low(PMW3320_CS_PIN);
+    writePinLow(PMW3320_CS_PIN);
 }
 
 void pmw3320_cs_deselect(void) {
-    gpio_write_pin_high(PMW3320_CS_PIN);
+    writePinHigh(PMW3320_CS_PIN);
 }
 
 uint8_t pmw3320_serial_read(void) {
-    gpio_set_pin_input(PMW3320_SDIO_PIN);
+    setPinInput(PMW3320_SDIO_PIN);
     uint8_t byte = 0;
 
     for (uint8_t i = 0; i < 8; ++i) {
-        gpio_write_pin_low(PMW3320_SCLK_PIN);
+        writePinLow(PMW3320_SCLK_PIN);
         wait_us(1);
 
-        byte = (byte << 1) | gpio_read_pin(PMW3320_SDIO_PIN);
+        byte = (byte << 1) | readPin(PMW3320_SDIO_PIN);
 
-        gpio_write_pin_high(PMW3320_SCLK_PIN);
+        writePinHigh(PMW3320_SCLK_PIN);
         wait_us(1);
     }
 
@@ -93,19 +85,19 @@ uint8_t pmw3320_serial_read(void) {
 }
 
 void pmw3320_serial_write(uint8_t data) {
-    gpio_set_pin_output(PMW3320_SDIO_PIN);
+    setPinOutput(PMW3320_SDIO_PIN);
 
     for (int8_t b = 7; b >= 0; b--) {
-        gpio_write_pin_low(PMW3320_SCLK_PIN);
+        writePinLow(PMW3320_SCLK_PIN);
 
         if (data & (1 << b))
-            gpio_write_pin_high(PMW3320_SDIO_PIN);
+            writePinHigh(PMW3320_SDIO_PIN);
         else
-            gpio_write_pin_low(PMW3320_SDIO_PIN);
+            writePinLow(PMW3320_SDIO_PIN);
 
         wait_us(2);
 
-        gpio_write_pin_high(PMW3320_SCLK_PIN);
+        writePinHigh(PMW3320_SCLK_PIN);
     }
 
     // This was taken from ADNS5050 driver.
@@ -197,16 +189,4 @@ bool pmw3320_check_signature(void) {
     uint8_t pid2 = pmw3320_read_reg(REG_Inverse_Product_ID);
 
     return (pid == 0x3b && pid2 == 0xc4);
-}
-
-report_mouse_t pmw3320_get_report(report_mouse_t mouse_report) {
-    report_pmw3320_t data = pmw3320_read_burst();
-
-    if (data.dx != 0 || data.dy != 0) {
-        pd_dprintf("Raw ] X: %d, Y: %d\n", data.dx, data.dy);
-        mouse_report.x = (mouse_xy_report_t)data.dx;
-        mouse_report.y = (mouse_xy_report_t)data.dy;
-    }
-
-    return mouse_report;
 }
